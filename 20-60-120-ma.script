@@ -83,7 +83,7 @@ if barstate.islast and DKJSwitchInput==1
      style=close[20+moveLabel]>close[20+5+moveLabel]?label.style_label_lower_right:label.style_label_upper_right,
      text=tostring(close[moveLabel+20],'#.00'),
      color=color.new(color.gray,30),
-     textcolor=color.black,
+     textcolor=color.white,
      size=size.small)
     //label for mid cycle
     LC=label.new(
@@ -93,7 +93,7 @@ if barstate.islast and DKJSwitchInput==1
      style=close[60+moveLabel]>close[60+5+moveLabel]?label.style_label_lower_right:label.style_label_upper_right,
      text=tostring(close[60+moveLabel],'#.00'),
      color=color.new(color.red,30),
-     textcolor=color.black,
+     textcolor=color.white,
      size=size.small)
     //label for long cycle
     LD=label.new(
@@ -103,7 +103,7 @@ if barstate.islast and DKJSwitchInput==1
      style=close[120+moveLabel]>close[120+5+moveLabel]?label.style_label_lower_right:label.style_label_upper_right,
      text=tostring(close[120+moveLabel],'#.00'),
      color=color.new(color.blue,30),
-     textcolor=color.black,
+     textcolor=color.white,
      size=size.small)
     label.delete(LB[1])
     label.delete(LC[1])
