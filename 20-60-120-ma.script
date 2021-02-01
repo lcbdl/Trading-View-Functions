@@ -1,24 +1,193 @@
-study(title="MA 20-60-120", shorttitle="MA 20-60-120", overlay=true)
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © jchang274 2020-10-11 03:15:10
+//@version=4
+study("TWO",overlay=true,max_bars_back = 1000)
+//==========功能开关，可按自己需要在设置页面中的顺序==========
+//更改defval的值可以更改默认显示或关闭，调整当前功能中的顺序，自定义设置面板顺序
+TbgSwitchInput = input(defval=false,title="🕵 Deduct Period (ON/OFF) 推演周期显示",type=input.bool)
+moveTime = input(defval=10,title="🐖 Go! Go! Go! 推演周期设置",type=input.integer,minval=3,maxval=39,step=1)
+moveLabel=input(defval=0,title="🐖 Move Lable Forward 抵扣价前移",type=input.integer,minval=0,step=5)
+//以下仅有开关，无参数设置
+GapSwitchInput= input(defval=false,title="✂Show Gaps (ON/OFF) 缺口探测" ,type=input.bool)
+DKJSwitchInput = input(defval=true,title="💬 Price Lable Switch (ON/OFF) 抵扣价格显示",type=input.bool)
+MaSwitchInput = input(defval=true,title="📈 MA System (ON/OFF) SMA均线开关",type=input.bool)
+MaSwitch = MaSwitchInput?40:100
+EmaSwitchInput = input(defval=true,title="📈 EMA System (ON/OFF) EMA均线开关",type=input.bool)
+EmaSwitch = EmaSwitchInput?0:100
+Switch=input(defval=true,title="🕶 Change Candle Color (ON/OFF) K线变色",type=input.bool)
+DKSwitchInput = input(defval=true,title="🌗 Yellow Price Mark (ON/OFF) 抵扣价小黄点",type=input.bool)
+DKJRefSwitchInput = input(defval=true,title="↕ DKJ Vertical Ref (ON/OFF) 抵扣价平移指示",type=input.bool)
 
-length0=input(5, minval=1,title="MA  10  Length")
-length1=input(20, minval=1,title="MA  20  Length")
-length2=input(60, minval=1,title="MA 60 Length")
-length3=input(120, minval=1,title="MA 120 Length")
-sma0=sma(close,length0)
-sma1=sma(close,length1)
-sma2=sma(close,length2)
-sma3=sma(close,length3)
+//==========GAP Detector缺口探测功能==========
+GapUp1 = (GapSwitchInput==1 and low>high[1])?line.new(bar_index,low,bar_index[1],high[1],extend=extend.none,color=color.fuchsia,width=1):na
+GapUp2 = (GapSwitchInput==1 and low>high[1])?line.new(bar_index,high[1],bar_index[1],low,extend=extend.none,color=color.fuchsia,width=1):na
+GapDown1 = (GapSwitchInput==1 and high<low[1])?line.new(bar_index,high,bar_index[1],low[1],extend=extend.none,color=color.fuchsia,width=1):na
+GapDown2 = (GapSwitchInput==1 and high<low[1])?line.new(bar_index,low[1],bar_index[1],high,extend=extend.none,color=color.fuchsia,width=1):na
+length = 200
+width = 1
+min_pips=1
+gap_start = high[length]
+gap_end = low[length - 1]
+gap_bull = false
+gap_bear = false
+inf_gap = 0.0
+sup_gap = 0.0
+if barstate.islast
+    for j = 1 to length
+        gap_bull := false
+        gap_bear := false
+        inf_gap := 0.0
+        sup_gap := 0.0
+        if high[j] < low[j - 1] //bull gap
+            gap_start := high[j]
+            gap_end := low[j - 1]
+            gap_bull := true
+            inf_gap := gap_start
+            sup_gap := gap_end
+            for i = (j-1) to 0
+                sup_gap := min(sup_gap, low[i])
+            if ((sup_gap - inf_gap)/(syminfo.mintick*10) < min_pips) // only gap > min_pips are considered
+                gap_bull := false
+        if low[j] > high[j - 1] //bear gap
+            gap_start := low[j]
+            gap_end := high[j - 1]
+            gap_bear := true
+            inf_gap := gap_end
+            sup_gap := gap_start
+            for i = (j-1) to 0
+                inf_gap := max(inf_gap, high[i])
+            if ((sup_gap - inf_gap)/(syminfo.mintick*10) < min_pips) // only gap > min_pips pips are considered
+                gap_bear := false
+        if gap_bull and GapSwitchInput==1
+            line_bull_inf = line.new(x1 = bar_index[j], y1 = inf_gap, 
+                                     x2 = bar_index, y2 = inf_gap,
+                                     extend=extend.none, color = color.black, style = line.style_dashed, width = width)
+            line_bull_sup = line.new(x1 = bar_index[j-1], y1 = sup_gap, 
+                                     x2 = bar_index, y2 = sup_gap,
+                                     extend=extend.none, color = color.black, style = line.style_dashed, width = width)
+        if gap_bear and GapSwitchInput==1
+            line_bear_inf = line.new(x1 = bar_index[j-1], y1 = inf_gap, 
+                                     x2 = bar_index, y2 = inf_gap,
+                                     extend=extend.none, color = color.black, style = line.style_dashed, width = width)
+            line_bear_sup = line.new(x1 = bar_index[j], y1 = sup_gap, 
+                                     x2 = bar_index, y2 = sup_gap,
+                                     extend=extend.none, color = color.black, style = line.style_dashed, width = width)
 
-ema0=ema(close,length0)
-ema1=ema(close,length1)
-ema2=ema(close,length2)
-ema3=ema(close,length3)
+//==========Price Lable 显示抵扣价价格功能==========
+if barstate.islast and DKJSwitchInput==1
+    //label for short cycle
+    LB=label.new(
+     x=bar_index[20]-moveLabel ,
+     y=na,
+     yloc=close[20+moveLabel]>close[20+5+moveLabel]?yloc.abovebar:yloc.belowbar,
+     style=close[20+moveLabel]>close[20+5+moveLabel]?label.style_label_lower_right:label.style_label_upper_right,
+     text=tostring(close[moveLabel+20],'#.00'),
+     color=color.new(color.gray,30),
+     textcolor=color.black,
+     size=size.small)
+    //label for mid cycle
+    LC=label.new(
+     x=bar_index[60]-moveLabel ,
+     y=na,
+     yloc=close[60+moveLabel]>close[60+5+moveLabel]?yloc.abovebar:yloc.belowbar,
+     style=close[60+moveLabel]>close[60+5+moveLabel]?label.style_label_lower_right:label.style_label_upper_right,
+     text=tostring(close[60+moveLabel],'#.00'),
+     color=color.new(color.red,30),
+     textcolor=color.black,
+     size=size.small)
+    //label for long cycle
+    LD=label.new(
+     x=bar_index[120]-moveLabel ,
+     y=na,
+     yloc=close[120+moveLabel]>close[120+5+moveLabel]?yloc.abovebar:yloc.belowbar,
+     style=close[120+moveLabel]>close[120+5+moveLabel]?label.style_label_lower_right:label.style_label_upper_right,
+     text=tostring(close[120+moveLabel],'#.00'),
+     color=color.new(color.blue,30),
+     textcolor=color.black,
+     size=size.small)
+    label.delete(LB[1])
+    label.delete(LC[1])
+    label.delete(LD[1])
 
-plot(sma0, color=white,   linewidth=1)
-plot(sma1, color=green,   linewidth=1)
-plot(sma2, color=yellow,  linewidth=1)
-plot(sma3, color=#FF0000, linewidth=1)
-plot(ema0, color=silver,  linewidth=1)
-plot(ema1, color=olive,   linewidth=1)
-plot(ema2, color=orange,  linewidth=1)
-plot(ema3, color=#FF5252, linewidth=1)
+//==========Deduct Period 推演时间功能==========
+moveTime20 = 20-moveTime
+moveTime60 = 60-moveTime
+moveTime120 = 120-moveTime
+ConTbg = barstate.islast and TbgSwitchInput==1
+bgcolor(color.yellow,transp=95,offset=-moveLabel,editable=false,show_last=1)
+// bgcolor(ConTbg?color.yellow:na,transp=95,offset=moveTime-moveLabel,editable=false,show_last=1)
+bgcolor(color.black,transp=90,offset=-20-moveLabel,editable=false,show_last=1)
+bgcolor(ConTbg?color.black:na,transp=95,offset=-moveTime20-moveLabel,editable=false,show_last=1)
+bgcolor(color.red,transp=90,offset=-60-moveLabel,editable=false,show_last=1)
+bgcolor(ConTbg?color.red:na,transp=95,offset=-moveTime60-moveLabel,editable=false,show_last=1)
+bgcolor(color.blue,transp=90,offset=-120-moveLabel,editable=false,show_last=1)
+bgcolor(ConTbg?color.blue:na,transp=95,offset=-moveTime120-moveLabel,editable=false,show_last=1)
+ypos=highest(high,150+moveLabel)
+if barstate.islast and TbgSwitchInput==1
+    dp20 = label.new(
+     x=bar_index - moveLabel- 20 + 5,
+     y=ypos,
+     yloc=yloc.price,
+     text=tostring(moveTime,'#'),
+     textcolor=color.new(color.silver,50),
+     color=color.new(color.yellow,100),
+     style=label.style_label_down,
+     size=size.huge)
+    dp60 = label.new(
+     x=bar_index -moveLabel - 60 + 5  ,
+     y=ypos,
+     yloc=yloc.price,
+     text=tostring(moveTime,'#'),
+     textcolor=color.new(color.silver,50),
+     color=color.new(color.yellow,100),
+     style=label.style_label_down,
+     size=size.huge)
+    dp120 = label.new(
+     x=bar_index -moveLabel - 120 + 5  ,
+     y=ypos,
+     yloc=yloc.price,
+     text=tostring(moveTime,'#'),
+     textcolor=color.new(color.silver,50),
+     color=color.new(color.yellow,100),
+     style=label.style_label_down,
+     size=size.huge)
+    label.delete(dp20[1])
+    label.delete(dp60[1])
+    label.delete(dp120[1])
+
+//==========Moving Average System 双均线功能==========
+e1=ema(close,20)
+c1=sma(close,20)
+e2=ema(close,60)
+c2=sma(close,60)
+e3=ema(close,120)
+c3=sma(close,120)
+
+plot(e1,"ema20",color=bar_index % 2 == 0 ? color.gray: color.white)
+plot(c1,"ma20",color=#D3D3D3)
+plot(e2,"ema60",color=bar_index % 2 == 0 ? color.red: color.white)
+plot(c2,"ma60",color=#FDBCB4)
+plot(e3,"ema120",color=bar_index % 2 == 0 ? color.blue: color.white)
+plot(c3,"ma120",color=#ADD8E6)
+//==========Short Trend Change K线变色功能==========
+ConGreen  = close>ema(close,20) and close>sma(close,20) and close>close[20] 
+ConRed = close<ema(close,20) and close<sma(close,20) and close<close[20] 
+ConYellow  = not(ConGreen and ConRed)
+ChangeColorYellow = (ConYellow and Switch==1) ? color.yellow:na
+ChangeColorGreen = (ConGreen and Switch==1) ? color.green:na
+ChangeColorRed = (ConRed and Switch==1) ? color.red:na
+barcolor(ChangeColorGreen,editable=false)
+barcolor(ChangeColorRed,editable=false)
+barcolor(ChangeColorYellow,editable=false)
+
+//==========Yellow Price Mark 抵扣价小黄点位置标记==========
+ConLeiDK = barstate.islast and DKSwitchInput==1
+plot(ConLeiDK?close[20+moveLabel]:na,color=color.new(color.yellow,10),linewidth=4,offset=-moveLabel-20,style=plot.style_circles,editable=false,show_last=1)
+plot(ConLeiDK?close[60+moveLabel]:na,color=color.new(color.yellow,10),linewidth=4,offset=-moveLabel-60,style=plot.style_circles,editable=false,show_last=1)
+plot(ConLeiDK?close[120+moveLabel]:na,color=color.new(color.yellow,10),linewidth=4,offset=-moveLabel-120,style=plot.style_circles,editable=false,show_last=1)
+
+//==========DKJ Vertical Referance 抵扣价平移到第一根K线，方便对比抵扣价对价格的压力==========
+ConDJRef = barstate.islast and DKJRefSwitchInput==1
+plot(ConDJRef?close[20+moveLabel]:na,color=color.new(color.black,50),linewidth=3,offset=-moveLabel,style=plot.style_circles,editable=false,show_last=1)
+plot(ConDJRef?close[60+moveLabel]:na,color=color.new(color.red,50),linewidth=3,offset=-moveLabel,style=plot.style_circles,editable=false,show_last=1)
+plot(ConDJRef?close[120+moveLabel]:na,color=color.new(color.blue,50),linewidth=3,offset=-moveLabel,style=plot.style_circles,editable=false,show_last=1)
